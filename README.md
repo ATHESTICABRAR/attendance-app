@@ -1,1 +1,387 @@
-# attendance-app
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Class Attendance App</title>
+  <style>
+    :root{
+      --bg:#0f172a; /* slate-900 */
+      --panel:#111827; /* gray-900 */
+      --muted:#94a3b8; /* slate-400 */
+      --text:#e5e7eb; /* gray-200 */
+      --accent:#22c55e; /* green-500 */
+      --accent-2:#3b82f6; /* blue-500 */
+      --warn:#ef4444; /* red-500 */
+      --card:#1f2937; /* gray-800 */
+      --chip:#0ea5e9; /* sky-500 */
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(120deg,#0b1027,#111827);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text);}
+    .container{max-width:1100px;margin:24px auto;padding:16px}
+    .header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .title{font-size:clamp(20px,3vw,28px);font-weight:800;letter-spacing:.3px}
+    .sub{color:var(--muted);font-size:14px}
+
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:900px){.grid{grid-template-columns:360px 1fr}}
+
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.06);border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+    .card h3{margin:0;padding:16px 16px 0;font-size:16px;color:#cbd5e1}
+    .card .body{padding:16px}
+    label{display:block;font-size:13px;color:#cbd5e1;margin:8px 0 6px}
+    input, textarea, select{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text);border-radius:12px;padding:10px 12px;outline:none}
+    textarea{min-height:120px;resize:vertical}
+    .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    button{border:none;border-radius:12px;padding:10px 14px;font-weight:600;cursor:pointer}
+    .primary{background:var(--accent);color:black}
+    .secondary{background:var(--accent-2);color:white}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--text)}
+    .danger{background:var(--warn);color:white}
+    .chip{display:inline-flex;align-items:center;gap:6px;background:rgba(14,165,233,.15);color:#e0f2fe;border:1px solid rgba(14,165,233,.35);padding:6px 10px;border-radius:999px;font-size:12px}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px dashed rgba(255,255,255,.08);text-align:left}
+    th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af}
+    tr:hover td{background:rgba(255,255,255,.03)}
+
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px}
+    .stat .k{font-size:22px;font-weight:800}
+    .stat .l{font-size:12px;color:#a3a3a3}
+
+    .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:10px 0}
+    .switch{display:inline-flex;align-items:center;gap:8px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <div class="title">📋 Class Attendance</div>
+        <div class="sub">Mark attendance, auto-calc present/absent/percentage, save records & share on WhatsApp.</div>
+      </div>
+      <div class="chip" id="nowChip">🗓️ <span id="nowText"></span></div>
+    </div>
+
+    <div class="grid">
+      <!-- Left: Setup and quick inputs -->
+      <div class="card">
+        <h3>Setup</h3>
+        <div class="body">
+          <label>Class / Section</label>
+          <input id="className" placeholder="e.g., CSE-F (1st Year)" />
+          <label>Date</label>
+          <input id="dateField" type="date" />
+          <label>Time</label>
+          <input id="timeField" type="time" />
+
+          <div class="toolbar">
+            <span class="switch">
+              <input type="checkbox" id="useRoster" />
+              <label for="useRoster" style="margin:0">Use student list (checkboxes)</label>
+            </span>
+          </div>
+
+          <div id="rosterArea" style="display:none">
+            <label>Paste student names (one per line)</label>
+            <textarea id="rosterInput" placeholder="1. Alice\n2. Bob\n3. Charlie"></textarea>
+            <div class="btns">
+              <button class="secondary" id="buildRosterBtn">Build Checklist</button>
+              <button class="ghost" id="clearRosterBtn">Clear</button>
+            </div>
+          </div>
+
+          <div id="quickCounts">
+            <label>Total Strength</label>
+            <input id="totalStrength" type="number" min="0" placeholder="e.g., 60" />
+            <label>Present Count</label>
+            <input id="presentCount" type="number" min="0" placeholder="e.g., 57" />
+          </div>
+
+          <div class="btns">
+            <button class="primary" id="markBtn">Mark Attendance</button>
+            <button class="ghost" id="resetBtn">Reset Form</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Checklist & live stats -->
+      <div class="card">
+        <h3>Marking Panel</h3>
+        <div class="body">
+          <div id="checklistTools" style="display:none" class="btns">
+            <button class="ghost" id="selectAllPresent">Select All Present</button>
+            <button class="ghost" id="selectAllAbsent">Select All Absent</button>
+          </div>
+          <div id="checklist" style="max-height:260px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:8px"></div>
+
+          <div class="stats" style="margin-top:12px">
+            <div class="stat"><div class="k" id="stStrength">0</div><div class="l">Strength</div></div>
+            <div class="stat"><div class="k" id="stPresent">0</div><div class="l">Present</div></div>
+            <div class="stat"><div class="k" id="stAbsent">0</div><div class="l">Absent</div></div>
+            <div class="stat"><div class="k" id="stPercent">0%</div><div class="l">Percentage</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>Saved Sessions</h3>
+      <div class="body">
+        <div class="btns">
+          <button class="secondary" id="exportText">Export Text</button>
+          <button class="ghost" id="exportCSV">Export CSV</button>
+          <button class="primary" id="shareWA">Share via WhatsApp</button>
+          <button class="danger" id="clearSessions">Clear All</button>
+        </div>
+        <div style="overflow:auto">
+          <table id="sessionsTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Date & Time</th>
+                <th>Class</th>
+                <th>Strength</th>
+                <th>Present</th>
+                <th>Absent</th>
+                <th>%</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Helpers
+    const byId = (id)=>document.getElementById(id);
+    const nowText = byId('nowText');
+    const dateField = byId('dateField');
+    const timeField = byId('timeField');
+
+    function updateNowChip(){
+      const now = new Date();
+      nowText.textContent = now.toLocaleString();
+    }
+
+    function initDateTime(){
+      const now = new Date();
+      dateField.value = now.toISOString().slice(0,10);
+      timeField.value = now.toTimeString().slice(0,5);
+      updateNowChip();
+      setInterval(updateNowChip, 1000);
+    }
+
+    // Roster / checklist
+    const useRoster = byId('useRoster');
+    const rosterArea = byId('rosterArea');
+    const rosterInput = byId('rosterInput');
+    const buildRosterBtn = byId('buildRosterBtn');
+    const clearRosterBtn = byId('clearRosterBtn');
+    const checklist = byId('checklist');
+    const checklistTools = byId('checklistTools');
+
+    let roster = []; // array of {name, present}
+
+    function parseRoster(text){
+      return text
+        .split(/\n+/)
+        .map(l=>l.replace(/^\s*\d+\.?\s*/, '').trim())
+        .filter(Boolean)
+        .map(name=>({name, present:true}));
+    }
+
+    function renderChecklist(){
+      checklist.innerHTML = '';
+      if(!roster.length){
+        checklist.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:6px">No roster yet. Paste names and click "Build Checklist".</div>';
+        checklistTools.style.display='none';
+        return;
+      }
+      checklistTools.style.display='flex';
+      const ul = document.createElement('div');
+      roster.forEach((s, idx)=>{
+        const row = document.createElement('div');
+        row.style.display='flex';
+        row.style.alignItems='center';
+        row.style.gap='10px';
+        row.style.padding='6px 8px';
+        const cb = document.createElement('input');
+        cb.type='checkbox';
+        cb.checked = !!s.present;
+        cb.addEventListener('change', ()=>{ s.present = cb.checked; refreshStats(); });
+        const name = document.createElement('span');
+        name.textContent = s.name;
+        row.appendChild(cb);
+        row.appendChild(name);
+        ul.appendChild(row);
+      });
+      checklist.appendChild(ul);
+      refreshStats();
+    }
+
+    buildRosterBtn.addEventListener('click', ()=>{
+      roster = parseRoster(rosterInput.value);
+      byId('totalStrength').value = roster.length || '';
+      byId('presentCount').value = roster.filter(s=>s.present).length || '';
+      renderChecklist();
+    });
+    clearRosterBtn.addEventListener('click', ()=>{ rosterInput.value=''; roster=[]; renderChecklist(); });
+
+    useRoster.addEventListener('change', ()=>{
+      const on = useRoster.checked;
+      rosterArea.style.display = on ? 'block' : 'none';
+      byId('quickCounts').style.display = on ? 'none' : 'block';
+      renderChecklist();
+      refreshStats();
+    });
+
+    byId('selectAllPresent').addEventListener('click', ()=>{ roster.forEach(s=>s.present=true); renderChecklist(); });
+    byId('selectAllAbsent').addEventListener('click', ()=>{ roster.forEach(s=>s.present=false); renderChecklist(); });
+
+    // Stats
+    const stStrength = byId('stStrength');
+    const stPresent = byId('stPresent');
+    const stAbsent = byId('stAbsent');
+    const stPercent = byId('stPercent');
+
+    function refreshStats(){
+      let strength=0, present=0;
+      if(useRoster.checked){
+        strength = roster.length;
+        present = roster.filter(s=>s.present).length;
+      }else{
+        strength = parseInt(byId('totalStrength').value||'0',10);
+        present = parseInt(byId('presentCount').value||'0',10);
+      }
+      const absent = Math.max(0, strength - present);
+      const percent = strength>0 ? ((present*100)/strength) : 0;
+
+      stStrength.textContent = strength;
+      stPresent.textContent = present;
+      stAbsent.textContent = absent;
+      stPercent.textContent = percent.toFixed(2) + '%';
+      return {strength, present, absent, percent: +percent.toFixed(2)};
+    }
+
+    ['input','change'].forEach(evt=>{
+      byId('totalStrength').addEventListener(evt, refreshStats);
+      byId('presentCount').addEventListener(evt, refreshStats);
+    });
+
+    // Sessions storage
+    const sessionsTableBody = document.querySelector('#sessionsTable tbody');
+    const sessions = JSON.parse(localStorage.getItem('attendance_sessions')||'[]');
+
+    function renderSessions(){
+      sessionsTableBody.innerHTML='';
+      sessions.forEach((s, i)=>{
+        const tr = document.createElement('tr');
+        const cells = [i+1, s.dateTime, s.className||'-', s.strength, s.present, s.absent, s.percent + '%'];
+        cells.forEach(val=>{
+          const td=document.createElement('td');
+          td.textContent=val;
+          tr.appendChild(td);
+        });
+        sessionsTableBody.appendChild(tr);
+      });
+    }
+
+    function saveSessions(){ localStorage.setItem('attendance_sessions', JSON.stringify(sessions)); }
+
+    // Mark & Save
+    const markBtn = byId('markBtn');
+    const resetBtn = byId('resetBtn');
+
+    markBtn.addEventListener('click', ()=>{
+      const {strength, present, absent, percent} = refreshStats();
+      if(strength<=0){ alert('Please provide a valid Strength (> 0).'); return; }
+      if(present<0 || present>strength){ alert('Present must be between 0 and Strength.'); return; }
+
+      const date = byId('dateField').value;
+      const time = byId('timeField').value;
+      const className = byId('className').value.trim();
+      const dateTime = `${date} ${time}`;
+
+      // Optional: build absent list from roster
+      let absentees = [];
+      if(useRoster.checked && roster.length){
+        roster.forEach(s=>{ if(!s.present) absentees.push(s.name); });
+      }
+
+      const session = { dateTime, className, strength, present, absent, percent, absentees };
+      sessions.unshift(session);
+      saveSessions();
+      renderSessions();
+      alert('Attendance saved!');
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      byId('className').value='';
+      initDateTime();
+      if(useRoster.checked){ roster.forEach(s=>s.present=true); renderChecklist(); }
+      byId('totalStrength').value='';
+      byId('presentCount').value='';
+      refreshStats();
+    });
+
+    // Export / Share
+    function buildTextReport(){
+      if(!sessions.length) return 'No sessions saved.';
+      let out = '📋 Class Attendance Report\n\n';
+      sessions.forEach((s, i)=>{
+        out += `#${i+1} — ${s.className||'Class'}\n`;
+        out += `Date & Time: ${s.dateTime}\n`;
+        out += `Strength: ${s.strength}\nPresent: ${s.present}\nAbsent: ${s.absent}\nPercentage: ${s.percent}%\n`;
+        if(s.absentees && s.absentees.length){ out += `Absentees: ${s.absentees.join(', ')}\n`; }
+        out += '-----------------------------\n';
+      });
+      return out;
+    }
+
+    function download(filename, text){
+      const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    byId('exportText').addEventListener('click', ()=>{
+      const txt = buildTextReport();
+      download('attendance_report.txt', txt);
+    });
+
+    byId('exportCSV').addEventListener('click', ()=>{
+      if(!sessions.length){ alert('No sessions to export.'); return; }
+      const header = ['Date & Time','Class','Strength','Present','Absent','Percentage','Absentees'];
+      const rows = sessions.map(s=>[
+        s.dateTime, s.className||'', s.strength, s.present, s.absent, s.percent + '%', (s.absentees||[]).join('; ')
+      ]);
+      const csv = [header, ...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      download('attendance_report.csv', csv);
+    });
+
+    byId('shareWA').addEventListener('click', ()=>{
+      const txt = buildTextReport();
+      const url = 'https://wa.me/?text=' + encodeURIComponent(txt);
+      window.open(url, '_blank');
+    });
+
+    byId('clearSessions').addEventListener('click', ()=>{
+      if(confirm('Delete all saved sessions from this browser?')){
+        sessions.length = 0; saveSessions(); renderSessions();
+      }
+    });
+
+    // Init
+    initDateTime();
+    renderChecklist();
+    renderSessions();
+    refreshStats();
+  </script>
+</body>
+</html>
